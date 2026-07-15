@@ -1,12 +1,12 @@
 ---
 name: docs-search
-description: Search the project's knowledge base of markdown docs for conventions, decisions, and reference material. Use whenever you need project docs, past decisions, or internal conventions before answering from memory or asking the user. Triggers on questions about how this project does things (auth, deployment, styling, database, logging, tags).
+description: Search the project's knowledge base of conventions, decisions, and guidelines. Use when you need documentation and prior to implementation.
 ---
 
-Before answering from memory or asking the user, search the knowledge base:
+Before implementing or asking the user, search the knowledge base:
 
-    fts <query>     # ranked, grep-style path:text results
-    fts <path>      # print a page
+  fts <query> # ranked, grep-like results
+  fts <path>  # print a page
+  fts -h      # complete, advanced help
 
-Run `fts -h` for flags and index setup. Refining terms across several searches
-is normal and expected.
+Refining terms across several searches is normal and expected.

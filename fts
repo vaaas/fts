@@ -5,7 +5,12 @@ set -eu
 FTS_DOCS="${FTS_DOCS:-./doc}"
 FTS_DB="${FTS_DB:-./.fts.db}"
 LIMIT=10
-MIN_SCORE=0
+# FTS5 clamps a non-discriminative term's IDF to 1e-6, so a document that
+# matched only such terms scores about that much regardless of corpus. The
+# default sits above that floor to drop those junk matches, and no higher:
+# bm25 is unnormalised, so a larger absolute cutoff would not travel between
+# corpora. Precision comes from ranking and term quorum, not this threshold.
+MIN_SCORE=0.001
 DO_INIT=0
 
 # bm25 relevance, negated so that higher means more relevant. One weight per
@@ -26,7 +31,7 @@ Usage:
 Options:
   -i         Build (initialise) the search index.
   -n N       Maximum number of results (default 10).
-  -s S       Minimum relevance score, drops weaker matches (default 0).
+  -s S       Minimum relevance score (default 0.001, drops junk matches).
   -d DIR     Documents folder (default ./doc, or $FTS_DOCS).
   -b FILE    Index database file (default ./.fts.db, or $FTS_DB).
   -h         Show this help.

@@ -17,11 +17,14 @@ a small POSIX shell script. No runtime, no services — one file and a database.
 
 ```
 1.0865  ./doc/database-conventions.md  Database Conventions
-1.0664  ./doc/auth-flow.md             Authentication Flow
+        # Database Conventions  Tags: #backend #database #conventions  We use…
+1.0664  ./doc/auth-flow.md  Authentication Flow
+        # Authentication Flow  Tags: #auth #backend #security  Our services…
 ```
 
-Each result line is `score  path  title`, ordered by relevance (higher is
-better).
+Each result is two lines — `score  path  title`, then an indented sample of the
+matching text — ordered by relevance (higher is better). The sample is drawn
+from around the match, so you can judge a hit without opening the file.
 
 ## Usage
 

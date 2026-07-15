@@ -7,12 +7,10 @@ FTS_DB="${FTS_DB:-./.fts.db}"
 LIMIT=10
 MIN_SCORE=0
 DO_INIT=0
-DO_SHOW=0
 
-# bm25 weights, one per column: path(unindexed) title tags body.
-# Title and tag hits are weighted higher than plain body text.
-WEIGHTS='0.0, 10.0, 5.0, 1.0'
-SCORE="-bm25(docs, $WEIGHTS)"
+# bm25 relevance; one weight per column (path is unindexed), so title and tag
+# hits outrank plain body text.
+SCORE="-bm25(docs, 0.0, 10.0, 5.0, 1.0)"
 
 # A sample of body text around the match, whitespace flattened to a single line
 # so each result is one `path:text` line, like grep.
@@ -23,11 +21,10 @@ usage() {
 Usage:
   fts -i [-d DIR] [-b FILE]   Build the search index from markdown files.
   fts [options] QUERY...      Search the index, best matches first.
-  fts -p PATH                 Print a document.
+  fts PATH                    Print a document (argument is an existing file).
 
 Options:
   -i         Build (initialise) the search index.
-  -p         Print a document instead of searching.
   -n N       Maximum number of results (default 10).
   -s S       Minimum relevance score, drops weaker matches (default 0).
   -d DIR     Documents folder (default ./doc, or $FTS_DOCS).
@@ -53,40 +50,23 @@ sql_escape() {
 build_index() {
 	[ -d "$FTS_DOCS" ] || die "documents folder not found: $FTS_DOCS"
 
-	sqlfile="${TMPDIR:-/tmp}/fts.$$.sql"
-	trap 'rm -f "$sqlfile"' EXIT INT TERM
-
 	{
 		echo 'BEGIN;'
 		echo 'DROP TABLE IF EXISTS docs;'
 		echo 'CREATE VIRTUAL TABLE docs USING fts5(path UNINDEXED, title, tags, body);'
-	} > "$sqlfile"
+		find "$FTS_DOCS" -type f -name '*.md' | sort | while IFS= read -r file; do
+			title=$(sed -n 's/^# *//p' "$file" | head -n 1)
+			[ -n "$title" ] || title=$(basename "$file")
+			tags=$(grep -oE '#[A-Za-z0-9]+' "$file" | sed 's/^#//' | sort -u | tr '\n' ' ')
 
-	count=0
-	# -print0/xargs avoided for portability; find with a while-read loop instead.
-	find "$FTS_DOCS" -type f -name '*.md' | sort | while IFS= read -r file; do
-		title=$(sed -n 's/^# *//p' "$file" | head -n 1)
-		[ -n "$title" ] || title=$(basename "$file")
-		tags=$(grep -oE '#[A-Za-z0-9]+' "$file" 2>/dev/null | sed 's/^#//' | sort -u | tr '\n' ' ' || true)
+			epath=$(sql_escape "$file")
+			printf "INSERT INTO docs(path,title,tags,body) VALUES('%s','%s','%s',readfile('%s'));\n" \
+				"$epath" "$(sql_escape "$title")" "$(sql_escape "$tags")" "$epath"
+		done
+		echo 'COMMIT;'
+	} | sqlite3 "$FTS_DB"
 
-		epath=$(sql_escape "$file")
-		etitle=$(sql_escape "$title")
-		etags=$(sql_escape "$tags")
-
-		printf "INSERT INTO docs(path,title,tags,body) VALUES('%s','%s','%s',readfile('%s'));\n" \
-			"$epath" "$etitle" "$etags" "$epath" >> "$sqlfile"
-		count=$((count + 1))
-		echo "$count" > "${sqlfile}.count"
-	done
-
-	echo 'COMMIT;' >> "$sqlfile"
-
-	sqlite3 "$FTS_DB" < "$sqlfile"
-
-	count=0
-	[ -f "${sqlfile}.count" ] && count=$(cat "${sqlfile}.count")
-	rm -f "${sqlfile}.count"
-	echo "indexed $count document(s) into $FTS_DB"
+	echo "indexed $(sqlite3 "$FTS_DB" 'SELECT count(*) FROM docs') document(s) into $FTS_DB"
 }
 
 # Turn free-text query words into a safe FTS5 MATCH expression.
@@ -120,17 +100,10 @@ LIMIT $LIMIT;
 SQL
 }
 
-show() {
-	[ "$#" -eq 1 ] || die "-p takes exactly one path"
-	[ -f "$1" ] || die "no such document: $1"
-	cat "$1"
-}
-
 # Leading ':' puts getopts in silent mode so we report errors ourselves.
-while getopts ':ipn:s:d:b:h' opt; do
+while getopts ':in:s:d:b:h' opt; do
 	case "$opt" in
 		i) DO_INIT=1 ;;
-		p) DO_SHOW=1 ;;
 		n) LIMIT="$OPTARG" ;;
 		s) MIN_SCORE="$OPTARG" ;;
 		d) FTS_DOCS="$OPTARG" ;;
@@ -147,14 +120,9 @@ if [ "$DO_INIT" -eq 1 ]; then
 	exit 0
 fi
 
-if [ "$DO_SHOW" -eq 1 ]; then
-	show "$@"
-	exit 0
-fi
-
 # Convenience: a single argument that is an existing file is printed, not searched.
 if [ "$#" -eq 1 ] && [ -f "$1" ]; then
-	show "$1"
+	cat "$1"
 	exit 0
 fi
 

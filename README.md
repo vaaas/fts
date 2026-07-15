@@ -31,18 +31,17 @@ without special handling.
 ```
 fts -i [-d DIR] [-b FILE]   Build the search index from markdown files.
 fts [options] QUERY...      Search the index, best matches first.
-fts -p PATH                 Print a document.
+fts PATH                    Print a document.
 ```
 
 A single argument that is an existing file is printed rather than searched, so
-`fts doc/auth-flow.md` opens that page (`-p` does the same, explicitly).
+`fts doc/auth-flow.md` opens that page. (For anything else, `cat` works too.)
 
 ### Options
 
 | Option | Description | Default |
 | --- | --- | --- |
 | `-i` | Build (initialise) the search index | |
-| `-p` | Print a document instead of searching | |
 | `-n N` | Maximum number of results | `10` |
 | `-s S` | Minimum relevance score; drops weaker matches | `0` |
 | `-d DIR` | Documents folder | `./doc` |

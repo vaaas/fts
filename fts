@@ -8,8 +8,8 @@ LIMIT=10
 MIN_SCORE=0
 DO_INIT=0
 
-# bm25 relevance; one weight per column (path is unindexed), so title and tag
-# hits outrank plain body text.
+# bm25 relevance, negated so that higher means more relevant. One weight per
+# column (path is unindexed), so title and tag hits outrank plain body text.
 SCORE="-bm25(docs, 0.0, 10.0, 5.0, 1.0)"
 
 # A sample of body text around the match, whitespace flattened to a single line
@@ -47,25 +47,28 @@ sql_escape() {
 	printf '%s' "$1" | sed "s/'/''/g"
 }
 
+# Emit the transaction that rebuilds the index: one INSERT per markdown file,
+# with the body loaded straight from disk by sqlite3's readfile().
+index_rebuild_sql() {
+	echo 'BEGIN;'
+	echo 'DROP TABLE IF EXISTS docs;'
+	echo 'CREATE VIRTUAL TABLE docs USING fts5(path UNINDEXED, title, tags, body);'
+	find "$FTS_DOCS" -type f -name '*.md' | sort | while IFS= read -r file
+	do
+		title=$(sed -n 's/^# *//p' "$file" | head -n 1)
+		test -n "$title" || title=$(basename "$file")
+		tags=$(grep -oE '#[A-Za-z0-9]+' "$file" | sed 's/^#//' | sort -u | tr '\n' ' ')
+
+		escaped_path=$(sql_escape "$file")
+		printf "INSERT INTO docs(path,title,tags,body) VALUES('%s','%s','%s',readfile('%s'));\n" \
+			"$escaped_path" "$(sql_escape "$title")" "$(sql_escape "$tags")" "$escaped_path"
+	done
+	echo 'COMMIT;'
+}
+
 build_index() {
-	[ -d "$FTS_DOCS" ] || die "documents folder not found: $FTS_DOCS"
-
-	{
-		echo 'BEGIN;'
-		echo 'DROP TABLE IF EXISTS docs;'
-		echo 'CREATE VIRTUAL TABLE docs USING fts5(path UNINDEXED, title, tags, body);'
-		find "$FTS_DOCS" -type f -name '*.md' | sort | while IFS= read -r file; do
-			title=$(sed -n 's/^# *//p' "$file" | head -n 1)
-			[ -n "$title" ] || title=$(basename "$file")
-			tags=$(grep -oE '#[A-Za-z0-9]+' "$file" | sed 's/^#//' | sort -u | tr '\n' ' ')
-
-			epath=$(sql_escape "$file")
-			printf "INSERT INTO docs(path,title,tags,body) VALUES('%s','%s','%s',readfile('%s'));\n" \
-				"$epath" "$(sql_escape "$title")" "$(sql_escape "$tags")" "$epath"
-		done
-		echo 'COMMIT;'
-	} | sqlite3 "$FTS_DB"
-
+	test -d "$FTS_DOCS" || die "documents folder not found: $FTS_DOCS"
+	index_rebuild_sql | sqlite3 "$FTS_DB"
 	echo "indexed $(sqlite3 "$FTS_DB" 'SELECT count(*) FROM docs') document(s) into $FTS_DB"
 }
 
@@ -74,26 +77,27 @@ build_index() {
 # '#' is stripped so `#backend` and `backend` behave identically.
 build_match() {
 	match=''
-	for word in "$@"; do
+	for word in "$@"
+	do
 		word=$(printf '%s' "$word" | sed 's/^#//; s/"/""/g')
-		[ -n "$word" ] || continue
+		test -n "$word" || continue
 		match="$match \"$word\""
 	done
 	printf '%s' "$match"
 }
 
 search() {
-	[ -f "$FTS_DB" ] || die "index not found: $FTS_DB (run: fts -i)"
-	[ "$#" -gt 0 ] || die "no query given (try: fts -h)"
+	test -f "$FTS_DB" || die "index not found: $FTS_DB (run: fts -i)"
+	test "$#" -gt 0 || die "no query given (try: fts -h)"
 
 	match=$(build_match "$@")
-	[ -n "$match" ] || die "empty query after parsing"
-	ematch=$(sql_escape "$match")
+	test -n "$match" || die "empty query after parsing"
+	escaped_match=$(sql_escape "$match")
 
 	sqlite3 -batch -noheader "$FTS_DB" <<SQL
 SELECT path || ':' || $SNIPPET
 FROM docs
-WHERE docs MATCH '$ematch'
+WHERE docs MATCH '$escaped_match'
   AND $SCORE >= $MIN_SCORE
 ORDER BY $SCORE DESC
 LIMIT $LIMIT;
@@ -101,8 +105,9 @@ SQL
 }
 
 # Leading ':' puts getopts in silent mode so we report errors ourselves.
-while getopts ':in:s:d:b:h' opt; do
-	case "$opt" in
+while getopts ':in:s:d:b:h' option
+do
+	case "$option" in
 		i) DO_INIT=1 ;;
 		n) LIMIT="$OPTARG" ;;
 		s) MIN_SCORE="$OPTARG" ;;
@@ -115,13 +120,15 @@ while getopts ':in:s:d:b:h' opt; do
 done
 shift $((OPTIND - 1))
 
-if [ "$DO_INIT" -eq 1 ]; then
+if test "$DO_INIT" -eq 1
+then
 	build_index
 	exit 0
 fi
 
 # Convenience: a single argument that is an existing file is printed, not searched.
-if [ "$#" -eq 1 ] && [ -f "$1" ]; then
+if test "$#" -eq 1 && test -f "$1"
+then
 	cat "$1"
 	exit 0
 fi

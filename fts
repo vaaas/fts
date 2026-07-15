@@ -1,0 +1,155 @@
+#!/bin/sh
+# fts - full-text search over a folder of markdown documents, powered by sqlite3.
+set -eu
+
+FTS_DOCS="${FTS_DOCS:-./doc}"
+FTS_DB="${FTS_DB:-./.fts.db}"
+LIMIT=10
+MIN_SCORE=0
+DO_INIT=0
+DO_SHOW=0
+
+# bm25 weights, one per column: path(unindexed) title tags body.
+# Title and tag hits are weighted higher than plain body text.
+WEIGHTS='0.0, 10.0, 5.0, 1.0'
+SCORE="-bm25(docs, $WEIGHTS)"
+
+usage() {
+	cat <<'EOF'
+Usage:
+  fts --init [--docs DIR] [--db FILE]   Build the search index from markdown files.
+  fts [options] QUERY...                Search the index, best matches first.
+  fts --show PATH                       Print a document.
+
+Options:
+  -n, --limit N       Maximum number of results (default 10).
+  -s, --min-score S   Minimum relevance score, drops weaker matches (default 0).
+      --docs DIR      Documents folder (default ./doc, or $FTS_DOCS).
+      --db FILE       Index database file (default ./.fts.db, or $FTS_DB).
+  -h, --help          Show this help.
+
+Tags:
+  Words written as #tag in a document are indexed and weighted highly, so
+  `fts backend` surfaces documents tagged #backend.
+EOF
+}
+
+die() {
+	echo "fts: $1" >&2
+	exit "${2:-1}"
+}
+
+# Double single quotes so a value is safe inside an SQL '...' literal.
+sql_escape() {
+	printf '%s' "$1" | sed "s/'/''/g"
+}
+
+build_index() {
+	[ -d "$FTS_DOCS" ] || die "documents folder not found: $FTS_DOCS"
+
+	sqlfile="${TMPDIR:-/tmp}/fts.$$.sql"
+	trap 'rm -f "$sqlfile"' EXIT INT TERM
+
+	{
+		echo 'BEGIN;'
+		echo 'DROP TABLE IF EXISTS docs;'
+		echo 'CREATE VIRTUAL TABLE docs USING fts5(path UNINDEXED, title, tags, body);'
+	} > "$sqlfile"
+
+	count=0
+	# -print0/xargs avoided for portability; find with a while-read loop instead.
+	find "$FTS_DOCS" -type f -name '*.md' | sort | while IFS= read -r file; do
+		title=$(sed -n 's/^# *//p' "$file" | head -n 1)
+		[ -n "$title" ] || title=$(basename "$file")
+		tags=$(grep -oE '#[A-Za-z0-9]+' "$file" 2>/dev/null | sed 's/^#//' | sort -u | tr '\n' ' ' || true)
+
+		epath=$(sql_escape "$file")
+		etitle=$(sql_escape "$title")
+		etags=$(sql_escape "$tags")
+
+		printf "INSERT INTO docs(path,title,tags,body) VALUES('%s','%s','%s',readfile('%s'));\n" \
+			"$epath" "$etitle" "$etags" "$epath" >> "$sqlfile"
+		count=$((count + 1))
+		echo "$count" > "${sqlfile}.count"
+	done
+
+	echo 'COMMIT;' >> "$sqlfile"
+
+	sqlite3 "$FTS_DB" < "$sqlfile"
+
+	count=0
+	[ -f "${sqlfile}.count" ] && count=$(cat "${sqlfile}.count")
+	rm -f "${sqlfile}.count"
+	echo "indexed $count document(s) into $FTS_DB"
+}
+
+# Turn free-text query words into a safe FTS5 MATCH expression.
+# Each word becomes a quoted string token (implicit AND), and a leading
+# '#' is stripped so `#backend` and `backend` behave identically.
+build_match() {
+	match=''
+	for word in "$@"; do
+		word=$(printf '%s' "$word" | sed 's/^#//; s/"/""/g')
+		[ -n "$word" ] || continue
+		match="$match \"$word\""
+	done
+	printf '%s' "$match"
+}
+
+search() {
+	[ -f "$FTS_DB" ] || die "index not found: $FTS_DB (run: fts --init)"
+	[ "$#" -gt 0 ] || die "no query given (try: fts --help)"
+
+	match=$(build_match "$@")
+	[ -n "$match" ] || die "empty query after parsing"
+	ematch=$(sql_escape "$match")
+
+	sqlite3 -batch -noheader -separator '  ' "$FTS_DB" <<SQL
+SELECT printf('%.4f', $SCORE) AS score, path, title
+FROM docs
+WHERE docs MATCH '$ematch'
+  AND $SCORE >= $MIN_SCORE
+ORDER BY $SCORE DESC
+LIMIT $LIMIT;
+SQL
+}
+
+show() {
+	[ "$#" -eq 1 ] || die "--show takes exactly one path"
+	[ -f "$1" ] || die "no such document: $1"
+	cat "$1"
+}
+
+# Parse options; the first non-option argument ends option parsing.
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		--init) DO_INIT=1; shift ;;
+		--show) DO_SHOW=1; shift ;;
+		-n|--limit) [ "$#" -ge 2 ] || die "$1 requires a value"; LIMIT="$2"; shift 2 ;;
+		-s|--min-score) [ "$#" -ge 2 ] || die "$1 requires a value"; MIN_SCORE="$2"; shift 2 ;;
+		--docs) [ "$#" -ge 2 ] || die "$1 requires a value"; FTS_DOCS="$2"; shift 2 ;;
+		--db) [ "$#" -ge 2 ] || die "$1 requires a value"; FTS_DB="$2"; shift 2 ;;
+		-h|--help) usage; exit 0 ;;
+		--) shift; break ;;
+		-?*) die "unknown option: $1" 2 ;;
+		*) break ;;
+	esac
+done
+
+if [ "$DO_INIT" -eq 1 ]; then
+	build_index
+	exit 0
+fi
+
+if [ "$DO_SHOW" -eq 1 ]; then
+	show "$@"
+	exit 0
+fi
+
+# Convenience: a single argument that is an existing file is printed, not searched.
+if [ "$#" -eq 1 ] && [ -f "$1" ]; then
+	show "$1"
+	exit 0
+fi
+
+search "$@"

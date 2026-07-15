@@ -114,3 +114,30 @@ cp -r skill/docs-search ~/.claude/skills/          # for all projects
 # or, per project:
 cp -r skill/docs-search .claude/skills/
 ```
+
+## Why this approach
+
+`fts` bets that a plain ranked, grep-like search over documents is a strong fit
+for LLM agents — cheaper and simpler than a vector database, and closer to the
+tooling agents already know. These sources informed that bet.
+
+**Academic papers**
+
+- Is Grep All You Need? How Agent Harnesses Reshape Agentic Search — <https://arxiv.org/abs/2605.15184>
+- EnterpriseRAG-Bench: A RAG Benchmark for Company Internal Knowledge — <https://arxiv.org/abs/2605.05253>
+- GrepRAG: An Empirical Study and Optimization of Grep-Like Retrieval for Code Completion — <https://arxiv.org/abs/2601.23254>
+- AutoRAG: Automated Framework for optimization of Retrieval Augmented Generation Pipeline — <https://arxiv.org/abs/2410.20878>
+
+**Independent benchmarks & practitioner writeups**
+
+- I benchmarked code retrieval for AI coding agents on 60 tasks (Sverklo) — <https://sverklo.com/blog/i-benchmarked-code-retrieval-for-ai-agents/>
+- Is grep really better than a vector DB? (Sara Zan) — <https://www.zansara.dev/posts/2026-03-15-vector-dbs-vs-grep/>
+- AI Agents Don't Need Vector Search Anymore: Inside the Agentic Search Stack Replacing RAG in 2026 (Medium) — <https://buzzgrewal.medium.com/ai-agents-dont-need-vector-search-anymore-inside-the-agentic-search-stack-replacing-rag-in-2026-58efcabe4f6f>
+- Grep Beats Vector Retrieval In Agent Harnesses For Fact Retrieval (Digg) — <https://digg.com/ai/0fabn997>
+- Is Grep All You Need? Grep vs Vector Retrieval for Agentic Search (DEV Community) — <https://dev.to/pueding/is-grep-all-you-need-grep-vs-vector-retrieval-for-agentic-search-534k>
+
+**Tooling (the search/index approach itself)**
+
+- ripgrep-all (rga) — <https://github.com/phiresky/ripgrep-all>
+- rga introductory blogpost (phiresky) — <https://phiresky.github.io/blog/2019/rga--ripgrep-for-zip-targz-docx-odt-epub-jpg/>
+- ripgrep — <https://github.com/BurntSushi/ripgrep>

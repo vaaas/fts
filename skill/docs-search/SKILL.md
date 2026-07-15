@@ -8,7 +8,7 @@ description: Search the project's knowledge base of markdown docs for convention
 When you need project docs, conventions, or past decisions, search the
 knowledge base before answering from memory or asking me:
 
-    fts <query>            # full-text + tag search, returns ranked page list
+    fts <query>            # full-text + tag search, grep-style path:text lines
     fts <path>             # print a full page
 
 The command figures out whether the argument is a query or a path: a single
@@ -30,8 +30,8 @@ Useful flags:
     fts -n 5 deployment        # cap the result count
     fts -s 1.0 database        # drop weak matches below a relevance score
 
-If the index is missing, build it once with `fts --init` (it scans the `doc`
-folder). Re-run `--init` after docs change.
+If the index is missing, build it once with `fts -i` (it scans the `doc`
+folder). Re-run `fts -i` after docs change.
 
 Prefer this over guessing. Multiple searches with refined terms is normal and
 expected — that's how the system is meant to be used.

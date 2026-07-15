@@ -21,16 +21,18 @@ SNIPPET="trim(replace(replace(snippet(docs, 3, '', '', '…', 16), char(10), ' '
 usage() {
 	cat <<'EOF'
 Usage:
-  fts --init [--docs DIR] [--db FILE]   Build the search index from markdown files.
-  fts [options] QUERY...                Search the index, best matches first.
-  fts --show PATH                       Print a document.
+  fts -i [-d DIR] [-b FILE]   Build the search index from markdown files.
+  fts [options] QUERY...      Search the index, best matches first.
+  fts -p PATH                 Print a document.
 
 Options:
-  -n, --limit N       Maximum number of results (default 10).
-  -s, --min-score S   Minimum relevance score, drops weaker matches (default 0).
-      --docs DIR      Documents folder (default ./doc, or $FTS_DOCS).
-      --db FILE       Index database file (default ./.fts.db, or $FTS_DB).
-  -h, --help          Show this help.
+  -i         Build (initialise) the search index.
+  -p         Print a document instead of searching.
+  -n N       Maximum number of results (default 10).
+  -s S       Minimum relevance score, drops weaker matches (default 0).
+  -d DIR     Documents folder (default ./doc, or $FTS_DOCS).
+  -b FILE    Index database file (default ./.fts.db, or $FTS_DB).
+  -h         Show this help.
 
 Tags:
   Words written as #tag in a document are indexed and weighted highly, so
@@ -101,8 +103,8 @@ build_match() {
 }
 
 search() {
-	[ -f "$FTS_DB" ] || die "index not found: $FTS_DB (run: fts --init)"
-	[ "$#" -gt 0 ] || die "no query given (try: fts --help)"
+	[ -f "$FTS_DB" ] || die "index not found: $FTS_DB (run: fts -i)"
+	[ "$#" -gt 0 ] || die "no query given (try: fts -h)"
 
 	match=$(build_match "$@")
 	[ -n "$match" ] || die "empty query after parsing"
@@ -119,26 +121,26 @@ SQL
 }
 
 show() {
-	[ "$#" -eq 1 ] || die "--show takes exactly one path"
+	[ "$#" -eq 1 ] || die "-p takes exactly one path"
 	[ -f "$1" ] || die "no such document: $1"
 	cat "$1"
 }
 
-# Parse options; the first non-option argument ends option parsing.
-while [ "$#" -gt 0 ]; do
-	case "$1" in
-		--init) DO_INIT=1; shift ;;
-		--show) DO_SHOW=1; shift ;;
-		-n|--limit) [ "$#" -ge 2 ] || die "$1 requires a value"; LIMIT="$2"; shift 2 ;;
-		-s|--min-score) [ "$#" -ge 2 ] || die "$1 requires a value"; MIN_SCORE="$2"; shift 2 ;;
-		--docs) [ "$#" -ge 2 ] || die "$1 requires a value"; FTS_DOCS="$2"; shift 2 ;;
-		--db) [ "$#" -ge 2 ] || die "$1 requires a value"; FTS_DB="$2"; shift 2 ;;
-		-h|--help) usage; exit 0 ;;
-		--) shift; break ;;
-		-?*) die "unknown option: $1" 2 ;;
-		*) break ;;
+# Leading ':' puts getopts in silent mode so we report errors ourselves.
+while getopts ':ipn:s:d:b:h' opt; do
+	case "$opt" in
+		i) DO_INIT=1 ;;
+		p) DO_SHOW=1 ;;
+		n) LIMIT="$OPTARG" ;;
+		s) MIN_SCORE="$OPTARG" ;;
+		d) FTS_DOCS="$OPTARG" ;;
+		b) FTS_DB="$OPTARG" ;;
+		h) usage; exit 0 ;;
+		:) die "-$OPTARG requires a value" 2 ;;
+		?) die "unknown option: -$OPTARG" 2 ;;
 	esac
 done
+shift $((OPTIND - 1))
 
 if [ "$DO_INIT" -eq 1 ]; then
 	build_index

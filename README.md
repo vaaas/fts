@@ -11,7 +11,7 @@ a small POSIX shell script. No runtime, no services — one file and a database.
 ## Quick start
 
 ```sh
-./fts --init        # scan ./doc and build the search index
+./fts -i            # scan ./doc and build the search index
 ./fts backend       # search, best matches first
 ```
 
@@ -29,34 +29,36 @@ without special handling.
 ## Usage
 
 ```
-fts --init [--docs DIR] [--db FILE]   Build the search index from markdown files.
-fts [options] QUERY...                Search the index, best matches first.
-fts --show PATH                       Print a document.
+fts -i [-d DIR] [-b FILE]   Build the search index from markdown files.
+fts [options] QUERY...      Search the index, best matches first.
+fts -p PATH                 Print a document.
 ```
 
 A single argument that is an existing file is printed rather than searched, so
-`fts doc/auth-flow.md` opens that page.
+`fts doc/auth-flow.md` opens that page (`-p` does the same, explicitly).
 
 ### Options
 
 | Option | Description | Default |
 | --- | --- | --- |
-| `-n`, `--limit N` | Maximum number of results | `10` |
-| `-s`, `--min-score S` | Minimum relevance score; drops weaker matches | `0` |
-| `--docs DIR` | Documents folder | `./doc` |
-| `--db FILE` | Index database file | `./.fts.db` |
-| `-h`, `--help` | Show help | |
+| `-i` | Build (initialise) the search index | |
+| `-p` | Print a document instead of searching | |
+| `-n N` | Maximum number of results | `10` |
+| `-s S` | Minimum relevance score; drops weaker matches | `0` |
+| `-d DIR` | Documents folder | `./doc` |
+| `-b FILE` | Index database file | `./.fts.db` |
+| `-h` | Show help | |
 
-The documents folder and database file can also be set with the `FTS_DOCS` and
-`FTS_DB` environment variables.
+Options must come before the query. The documents folder and database file can
+also be set with the `FTS_DOCS` and `FTS_DB` environment variables.
 
 ### Examples
 
 ```sh
-fts token refresh          # multiple words are combined (all must match)
-fts -n 5 deployment        # cap the number of results
-fts -s 1.0 database        # only reasonably strong matches
-fts --docs ./notes --init  # index a different folder
+fts token refresh        # multiple words are combined (all must match)
+fts -n 5 deployment      # cap the number of results
+fts -s 1.0 database      # only reasonably strong matches
+fts -d ./notes -i        # index a different folder
 ```
 
 ## Tags
@@ -80,15 +82,15 @@ behave the same.
 
 ## How it works
 
-`--init` walks the documents folder for `*.md` files and inserts each into a
+`-i` walks the documents folder for `*.md` files and inserts each into a
 sqlite3 [FTS5](https://www.sqlite.org/fts5.html) virtual table with four
 columns: `path`, `title`, `tags`, and `body`. The title is the first `#`
 heading (falling back to the filename), and tags are extracted with a `#tag`
 pattern.
 
 Queries run through FTS5's `MATCH` and are ranked with `bm25`, using per-column
-weights that favour title and tag hits. Re-run `fts --init` whenever the
-documents change.
+weights that favour title and tag hits. Re-run `fts -i` whenever the documents
+change.
 
 ## Installing (Debian)
 

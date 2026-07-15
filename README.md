@@ -54,7 +54,7 @@ also be set with the `FTS_DOCS` and `FTS_DB` environment variables.
 ### Examples
 
 ```sh
-fts token refresh        # any word may match; more matches rank higher
+fts token refresh        # any term may match; more matches rank higher
 fts -n 5 deployment      # cap the number of results
 fts -s 1.0 database      # only reasonably strong matches
 fts -d ./notes -i        # index a different folder
@@ -88,8 +88,15 @@ heading (falling back to the filename), and tags are extracted with a `#tag`
 pattern.
 
 Queries run through FTS5's `MATCH` and are ranked with `bm25`, using per-column
-weights that favour title and tag hits. Re-run `fts -i` whenever the documents
-change.
+weights that favour title and tag hits. Query terms are combined with `OR`, so
+any term can match and bm25 floats the documents matching more (and rarer)
+terms to the top. Re-run `fts -i` whenever the documents change.
+
+The index is tokenised with the `porter` stemmer, so a search matches across
+word forms — `refreshing` finds `refresh`, `conventions` finds `convention` —
+without the query having to guess the exact wording in the document. Documents
+whose only matches are on non-discriminative terms (scoring at FTS5's clamped
+floor) are dropped by the default minimum score.
 
 ## Installing (Debian)
 

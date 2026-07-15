@@ -9,7 +9,7 @@ LIMIT=10
 # matched only such terms scores about that much regardless of corpus. The
 # default sits above that floor to drop those junk matches, and no higher:
 # bm25 is unnormalised, so a larger absolute cutoff would not travel between
-# corpora. Precision comes from ranking and term quorum, not this threshold.
+# corpora. Precision comes from bm25 ranking, not this threshold.
 MIN_SCORE=0.001
 DO_INIT=0
 
@@ -57,7 +57,7 @@ sql_escape() {
 index_rebuild_sql() {
 	echo 'BEGIN;'
 	echo 'DROP TABLE IF EXISTS docs;'
-	echo 'CREATE VIRTUAL TABLE docs USING fts5(path UNINDEXED, title, tags, body);'
+	echo "CREATE VIRTUAL TABLE docs USING fts5(path UNINDEXED, title, tags, body, tokenize = 'porter unicode61');"
 	find "$FTS_DOCS" -type f -name '*.md' | sort | while IFS= read -r file
 	do
 		title=$(sed -n 's/^# *//p' "$file" | head -n 1)

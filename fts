@@ -1,6 +1,6 @@
 #!/bin/sh
 # fts - full-text search over a folder of markdown documents, powered by sqlite3.
-set -eu
+set -euf
 
 FTS_DOCS="${FTS_DOCS:-./doc}"
 FTS_DB="${FTS_DB:-./.fts.db}"
@@ -80,10 +80,12 @@ build_index() {
 # Turn free-text query words into a safe FTS5 MATCH expression.
 # Words are joined with OR so any single term can match; bm25 then ranks
 # documents matching more (and rarer) terms highest. A leading '#' is
-# stripped so `#backend` and `backend` behave identically.
+# stripped so `#backend` and `backend` behave identically. Args are split on
+# whitespace, so a quoted `"multi word"` matches the same as separate words
+# rather than becoming one literal phrase token that rarely matches.
 build_match() {
 	match=''
-	for word in "$@"
+	for word in $*
 	do
 		word=$(printf '%s' "$word" | sed 's/^#//; s/"/""/g')
 		test -n "$word" || continue

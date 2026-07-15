@@ -54,7 +54,7 @@ also be set with the `FTS_DOCS` and `FTS_DB` environment variables.
 ### Examples
 
 ```sh
-fts token refresh        # multiple words are combined (all must match)
+fts token refresh        # any word may match; more matches rank higher
 fts -n 5 deployment      # cap the number of results
 fts -s 1.0 database      # only reasonably strong matches
 fts -d ./notes -i        # index a different folder

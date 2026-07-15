@@ -73,14 +73,16 @@ build_index() {
 }
 
 # Turn free-text query words into a safe FTS5 MATCH expression.
-# Each word becomes a quoted string token (implicit AND), and a leading
-# '#' is stripped so `#backend` and `backend` behave identically.
+# Words are joined with OR so any single term can match; bm25 then ranks
+# documents matching more (and rarer) terms highest. A leading '#' is
+# stripped so `#backend` and `backend` behave identically.
 build_match() {
 	match=''
 	for word in "$@"
 	do
 		word=$(printf '%s' "$word" | sed 's/^#//; s/"/""/g')
 		test -n "$word" || continue
+		test -z "$match" || match="$match OR"
 		match="$match \"$word\""
 	done
 	printf '%s' "$match"

@@ -14,9 +14,9 @@ DO_SHOW=0
 WEIGHTS='0.0, 10.0, 5.0, 1.0'
 SCORE="-bm25(docs, $WEIGHTS)"
 
-# A short sample of body text around the match, with whitespace flattened to a
-# single line so each result stays greppable.
-SNIPPET="trim(replace(replace(snippet(docs, 3, '', '', '…', 14), char(10), ' '), char(9), ' '))"
+# A sample of body text around the match, whitespace flattened to a single line
+# so each result is one `path:text` line, like grep.
+SNIPPET="trim(replace(replace(snippet(docs, 3, '', '', '…', 16), char(10), ' '), char(9), ' '))"
 
 usage() {
 	cat <<'EOF'
@@ -109,8 +109,7 @@ search() {
 	ematch=$(sql_escape "$match")
 
 	sqlite3 -batch -noheader "$FTS_DB" <<SQL
-SELECT printf('%.4f  %s  %s' || char(10) || '        %s',
-              $SCORE, path, title, $SNIPPET)
+SELECT path || ':' || $SNIPPET
 FROM docs
 WHERE docs MATCH '$ematch'
   AND $SCORE >= $MIN_SCORE

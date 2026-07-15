@@ -16,15 +16,15 @@ a small POSIX shell script. No runtime, no services — one file and a database.
 ```
 
 ```
-1.0865  ./doc/database-conventions.md  Database Conventions
-        # Database Conventions  Tags: #backend #database #conventions  We use…
-1.0664  ./doc/auth-flow.md  Authentication Flow
-        # Authentication Flow  Tags: #auth #backend #security  Our services…
+./doc/database-conventions.md:# Database Conventions  Tags: #backend #database …
+./doc/auth-flow.md:# Authentication Flow  Tags: #auth #backend #security  Our …
 ```
 
-Each result is two lines — `score  path  title`, then an indented sample of the
-matching text — ordered by relevance (higher is better). The sample is drawn
-from around the match, so you can judge a hit without opening the file.
+Each result is a single `path:text` line — the same shape as `grep -r` — where
+`text` is a sample drawn from around the match. Results are ordered by
+relevance (best first) rather than by filename, so the ranking shows in the
+order. The format is deliberately grep-like so tools and LLMs can parse it
+without special handling.
 
 ## Usage
 
